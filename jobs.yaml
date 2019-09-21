@@ -1,0 +1,146 @@
+openapi: 3.0.0
+info:
+  version: v1
+  title: Jobs API
+paths:
+  # retry policy (at least once, at most once, exactly once)
+  # idempotency key for job execution
+  # idempotency key for job creation
+  /jobs:
+    post:
+      summary: Create new job
+      operationId: createJob
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: true
+              properties:
+                name:
+                  type: string
+                  description: Job name
+                idempotencyKey:
+                  type: string
+                  description: prevent double job creation
+                execution:
+                  type: string
+                  enum:
+                    - INSTANT
+                    - LONG_RUNNING
+                  description: is job instant or long running
+                type:
+                  oneOf:
+                    - properties:
+                        kind:
+                          type: string
+                          enum:
+                            - ONE_TIME
+                        delay:
+                          type: object
+                          properties:
+                            unit:
+                              type: string
+                              enum: [SECONDS, MINUTES, HOURS, DAYS]
+                              default: SECONDS
+                            value:
+                              type: integer
+                    - properties:
+                        kind:
+                          type: string
+                          enum:
+                            - REPEATED
+                        schedule: # create possible schedules
+                          type: string
+                          required: true
+                retryPolicy:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                      enum: [SPECIFIED_DELAYS, CRON, ]
+
+                signal:
+                  properties:
+                    type:
+                      type: string
+                      enum: [HTTP, SSH, KAFKA]
+                    data:
+                      oneOf:
+                        - type: object
+                          description: HTTP signal data
+                          properties:
+                            callback:
+                              required: true
+                              type: string
+                            method:
+                              required: true
+                              type: string
+                              enum:
+                                - GET
+                                - POST
+                            postBody:
+                              type: string
+      responses:
+        200:
+          description: Return job id
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    type: string
+        400:
+          description: Invalid job definition
+          content:
+
+    get:
+      summary: Get job
+      operationId: getJob
+      parameters:
+        -
+      responses:
+    put:
+      summary: Update job
+      operationId: updateJob
+      parameters:
+        -
+      responses:
+    delete:
+      summary: Delete job
+      operationId: deleteJob
+      parameters:
+        -
+      responses:
+  /jons/{jobId}:
+    get:
+      summary: Get job definition
+      responses:
+
+  /jobs/{jobId}/status:
+    get:
+      summary: Get job status
+      operationId: getJobStatus
+      parameters:
+        - in: path
+          name: jobId
+          required: true
+          schema:
+            type: string
+          description: Job id
+      responses:
+  /jobs/{jobId}/executions:
+    get:
+      summary: Get job executions
+      responses:
+
+
+
+
+components:
+  schemas:
+    retryWithDelays:
+
+
+
+
