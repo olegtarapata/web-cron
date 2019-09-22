@@ -3,9 +3,6 @@ info:
   version: v1
   title: Jobs API
 paths:
-  # retry policy (at least once, at most once, exactly once)
-  # idempotency key for job execution
-  # idempotency key for job creation
   /jobs:
     post:
       summary: Create new job
@@ -14,73 +11,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: true
-              properties:
-                name:
-                  type: string
-                  description: Job name
-                idempotencyKey:
-                  type: string
-                  description: prevent double job creation
-                execution:
-                  type: string
-                  enum:
-                    - INSTANT
-                    - LONG_RUNNING
-                  description: is job instant or long running
-                type:
-                  oneOf:
-                    - properties:
-                        kind:
-                          type: string
-                          enum:
-                            - ONE_TIME
-                        delay:
-                          type: object
-                          properties:
-                            unit:
-                              type: string
-                              enum: [SECONDS, MINUTES, HOURS, DAYS]
-                              default: SECONDS
-                            value:
-                              type: integer
-                    - properties:
-                        kind:
-                          type: string
-                          enum:
-                            - REPEATED
-                        schedule: # create possible schedules
-                          type: string
-                          required: true
-                retryPolicy:
-                  type: object
-                  properties:
-                    type:
-                      type: string
-                      enum: [SPECIFIED_DELAYS, CRON, ]
-
-                signal:
-                  properties:
-                    type:
-                      type: string
-                      enum: [HTTP, SSH, KAFKA]
-                    data:
-                      oneOf:
-                        - type: object
-                          description: HTTP signal data
-                          properties:
-                            callback:
-                              required: true
-                              type: string
-                            method:
-                              required: true
-                              type: string
-                              enum:
-                                - GET
-                                - POST
-                            postBody:
-                              type: string
+              $ref: '#/components/schemas/job'
       responses:
         200:
           description: Return job id
@@ -90,32 +21,68 @@ paths:
                 properties:
                   id:
                     type: string
+                    description: Created job id
         400:
-          description: Invalid job definition
+          description: invalid job definition
           content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
 
+  /jobs/{jobId}:
     get:
-      summary: Get job
+      summary: Get job definition
       operationId: getJob
       parameters:
-        -
+        - in: path
+          name: jobId
+          schema:
+            type: string
+          required: true
+          description: job id
       responses:
+        200:
+          description: job definition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/job'
+        404:
+          description: job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+
     put:
       summary: Update job
       operationId: updateJob
       parameters:
-        -
+        - in: path
+          name: jobId
+          schema:
+            type: string
+          required: true
+          description: job id
+      requestBody:
+        description: updated job definition
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/job'
       responses:
-    delete:
-      summary: Delete job
-      operationId: deleteJob
-      parameters:
-        -
-      responses:
-  /jons/{jobId}:
-    get:
-      summary: Get job definition
-      responses:
+        200:
+          description: job definition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/job'
+        404:
+          description: job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
 
   /jobs/{jobId}/status:
     get:
@@ -127,20 +94,257 @@ paths:
           required: true
           schema:
             type: string
-          description: Job id
+          description: job id
       responses:
+        200:
+          description: job definition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/job'
+        404:
+          description: job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
+
   /jobs/{jobId}/executions:
     get:
       summary: Get job executions
+      operationId: jobExecutions
+      parameters:
+        - in: path
+          name: jobId
+          schema:
+            type: string
+          required: true
+          description: job id
       responses:
+        200:
+          description: executions list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/execution'
+        404:
+          description: job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
 
+  /jobs/{jobId}/executions/{executionId}:
+    get:
+      summary: Get job execution
+      operationId: jobExecution
+      parameters:
+        - in: path
+          name: jobId
+          schema:
+            type: string
+          required: true
+          description: job id
+        - in: path
+          name: executionId
+          schema:
+            type: string
+          required: true
+          description: execution id
+      responses:
+        200:
+          description: job execution
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/execution'
+        404:
+          description: job or execution not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
 
-
+  /jobs/{jobId}/executions/{executionId}/progress:
+    post:
+      summary: Track job progress for long running job
+      operationId: trackExecutionProgress
+      parameters:
+        - in: path
+          name: jobId
+          schema:
+            type: string
+          required: true
+          description: job id
+        - in: path
+          name: executionId
+          schema:
+            type: string
+          required: true
+          description: execution id
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  properties:
+                    failed:
+                      description: is execution failed
+                      type: boolean
+                    error:
+                      description: error description
+                      type: string
+                - type: object
+                  properties:
+                    suceeded:
+                      description: is execution succedded
+                      type: boolean
+                    comment:
+                      description: success comment
+                      type: string
+                - type: object
+                  properties:
+                    progress:
+                      $ref: '#/components/schemas/percent'
+                    comment:
+                      description: progress comment
+                      type: string
+      responses:
+        200:
+          description: job execution
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/execution'
+        404:
+          description: job or execution not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error'
 
 components:
   schemas:
-    retryWithDelays:
+    error:
+      type: object
+      description: error description
+      properties:
+        error:
+          type: string
+    job:
+      type: object
+      required: [name, type, signal]
+      properties:
+        id:
+          type: string
+          description: job Id
+          readOnly: true
+        name:
+          type: string
+          description: job name
+        idempotencyKey:
+          type: string
+          description: prevent double job creation
+        execution:
+          type: string
+          enum:
+            - INSTANT
+            - LONG_RUNNING
+          description: is job instant or long running
+        type:
+          oneOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - ONE_TIME
+                delay:
+                  type: object
+                  properties:
+                    unit:
+                      type: string
+                      enum: [SECONDS, MINUTES, HOURS, DAYS]
+                      default: SECONDS
+                    value:
+                      type: integer
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - REPEATED
+                schedule: # create possible schedules
+                  type: string
+        executionDeliveryPolicy:
+          type: string
+          enum: [AT_LEAST_ONCE, AT_MOST_ONCE]
+          description: delivery policy
+        retryPolicy:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: [SPECIFIED_DELAYS, CRON]
+        signal:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: [HTTP, SSH, KAFKA]
+            data:
+              oneOf:
+                - type: object
+                  description: HTTP signal data
+                  properties:
+                    callback:
+                      type: string
+                    method:
+                      type: string
+                      enum:
+                        - GET
+                        - POST
+                    postBody:
+                      type: string
 
+    execution:
+      type: object
+      description: job execution
+      properties:
+        id:
+          type: string
+          description: execution id, can be used as idempotency key for execution
+        jobId:
+          type: string
+          description: job id under this execution created
+        executionTime:
+          $ref: '#/components/schemas/timestamp'
+        status:
+          type: string
+          enum: [NEW, SCHEDULED, IN_PROGRESS, FAILED, SUCCEEDED]
+        progress:
+          type: array
+          items:
+            type: object
+            properties:
+              trackingTime:
+                $ref: '#/components/schemas/timestamp'
+              progress:
+                $ref: '#/components/schemas/percent'
+        resultMessage:
+          type: string
+          description: success or failure message
 
+    timestamp:
+      type: number
+      format: int64
+      description: epoch timestamp in millis
 
-
+    percent:
+      type: integer
+      format: int32
+      minimum: 0
+      maximum: 100
